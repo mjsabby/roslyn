@@ -415,6 +415,10 @@ namespace Microsoft.Cci
         ImmutableArray<LambdaDebugInfo> LambdaDebugInfo { get; }
 
         DynamicAnalysisMethodBodyData DynamicAnalysisData { get; }
+
+        int StandAloneSignatureRowId { get; }
+
+        CallingConvention IndirectCallingConvention { get; }
     }
 
     /// <summary>

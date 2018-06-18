@@ -55,6 +55,11 @@ namespace Microsoft.CodeAnalysis.CodeGen
             this.GetCurrentWriter().WriteUInt32(token);
         }
 
+        internal void EmitRawToken(uint value)
+        {
+            this.GetCurrentWriter().WriteUInt32(value);
+        }
+
         internal void EmitGreatestMethodToken()
         {
             // A magic value indicates that the token value is to be the literal value of the greatest method definition token.
