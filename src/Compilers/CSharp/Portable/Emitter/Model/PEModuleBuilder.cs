@@ -41,6 +41,8 @@ namespace Microsoft.CodeAnalysis.CSharp.Emit
         /// </summary>
         private Dictionary<FieldSymbol, NamedTypeSymbol> _fixedImplementationTypes;
 
+        private int _currentStandAloneSigRowId;
+
         private bool _needsGeneratedIsReadOnlyAttribute_Value;
         private bool _needsGeneratedIsUnmanagedAttribute_Value;
         private bool _needsGeneratedAttributes_IsFrozen;
@@ -115,6 +117,11 @@ namespace Microsoft.CodeAnalysis.CSharp.Emit
         internal sealed override string ModuleName
         {
             get { return _metadataName; }
+        }
+
+        internal int GetAndIncrementCurrentStandAloneSigRowId
+        {
+            get { return Interlocked.Increment(ref _currentStandAloneSigRowId); }
         }
 
         internal sealed override Cci.ICustomAttribute SynthesizeAttribute(WellKnownMember attributeConstructor)
