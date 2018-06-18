@@ -155,6 +155,10 @@ namespace Microsoft.CodeAnalysis.Emit.NoPia
                     default(ImmutableArray<LambdaDebugInfo>);
 
                 public DebugId MethodId => default(DebugId);
+
+                public int StandAloneSignatureRowId {  get { return 0; } }
+
+                public Cci.CallingConvention IndirectCallingConvention { get { return Cci.CallingConvention.Default; } }
             }
 
             IEnumerable<Cci.IGenericMethodParameter> Cci.IMethodDefinition.GenericParameters => _typeParameters;

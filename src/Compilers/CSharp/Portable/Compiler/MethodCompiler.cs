@@ -6,8 +6,10 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Linq;
+using System.Reflection.Metadata;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Cci;
 using Microsoft.CodeAnalysis.CodeGen;
 using Microsoft.CodeAnalysis.CSharp.Emit;
 using Microsoft.CodeAnalysis.CSharp.Symbols;
@@ -1225,6 +1227,20 @@ namespace Microsoft.CodeAnalysis.CSharp
                             entryPointOpt: null);
 
                         _moduleBeingBuiltOpt.SetMethodBody(methodSymbol.PartialDefinitionPart ?? methodSymbol, emittedBody);
+                    }
+                    else
+                    {
+                        if (methodSymbol.IsExternal)
+                        {
+                            foreach (var attribute in methodSymbol.GetAttributes())
+                            {
+                                var originalDef = attribute?.AttributeClass?.OriginalDefinition;
+                                if (originalDef != null && originalDef.ContainingNamespace?.QualifiedName == "System.Runtime.CompilerServices" && originalDef.Name == "CompilerIntrinsicAttribute")
+                                {
+                                    CompilerIntrinsicHandler.HandleIntrinsic(_moduleBeingBuiltOpt, methodSymbol, lazyVariableSlotAllocator, stateMachineTypeOpt, importChain, diagsForCurrentMethod);
+                                }
+                            }
+                        }
                     }
 
                     _diagnostics.AddRange(diagsForCurrentMethod);

@@ -2,6 +2,7 @@
 
 using System.Collections.Immutable;
 using System.Diagnostics;
+using Microsoft.Cci;
 using Microsoft.CodeAnalysis.Debugging;
 using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.PooledObjects;
@@ -41,6 +42,10 @@ namespace Microsoft.CodeAnalysis.CodeGen
         // Data used when emitting Dynamic Analysis resource:
         private readonly DynamicAnalysisMethodBodyData _dynamicAnalysisDataOpt;
 
+        private readonly int _standAloneSignatureRowId;
+
+        private readonly Cci.CallingConvention _indirectCallCallingConvention;
+
         public MethodBody(
             ImmutableArray<byte> ilBits,
             ushort maxStack,
@@ -60,7 +65,9 @@ namespace Microsoft.CodeAnalysis.CodeGen
             ImmutableArray<EncHoistedLocalInfo> stateMachineHoistedLocalSlots,
             ImmutableArray<Cci.ITypeReference> stateMachineAwaiterSlots,
             StateMachineMoveNextBodyDebugInfo stateMachineMoveNextDebugInfoOpt,
-            DynamicAnalysisMethodBodyData dynamicAnalysisDataOpt)
+            DynamicAnalysisMethodBodyData dynamicAnalysisDataOpt,
+            int standAloneSignatureRowId = 0,
+            Cci.CallingConvention indirectCallCallingConvention = CallingConvention.Default)
         {
             Debug.Assert(!locals.IsDefault);
             Debug.Assert(!exceptionHandlers.IsDefault);
@@ -84,6 +91,8 @@ namespace Microsoft.CodeAnalysis.CodeGen
             _stateMachineMoveNextDebugInfoOpt = stateMachineMoveNextDebugInfoOpt;
             _dynamicAnalysisDataOpt = dynamicAnalysisDataOpt;
             _sequencePoints = GetSequencePoints(sequencePoints, debugDocumentProvider);
+            _standAloneSignatureRowId = standAloneSignatureRowId;
+            _indirectCallCallingConvention = indirectCallCallingConvention;
         }
 
         private static ImmutableArray<Cci.SequencePoint> GetSequencePoints(SequencePointList sequencePoints, DebugDocumentProvider debugDocumentProvider)
@@ -141,5 +150,9 @@ namespace Microsoft.CodeAnalysis.CodeGen
         public ImmutableArray<LambdaDebugInfo> LambdaDebugInfo => _lambdaDebugInfo;
 
         public ImmutableArray<ClosureDebugInfo> ClosureDebugInfo => _closureDebugInfo;
+
+        public int StandAloneSignatureRowId => _standAloneSignatureRowId;
+
+        public Cci.CallingConvention IndirectCallingConvention => _indirectCallCallingConvention;
     }
 }

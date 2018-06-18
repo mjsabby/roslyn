@@ -41,6 +41,7 @@ namespace Microsoft.CodeAnalysis.CSharp.Emit
 
         private int _needsGeneratedAttributes;
         private bool _needsGeneratedAttributes_IsFrozen;
+        private int _currentStandAloneSigRowId;
 
         /// <summary>
         /// Returns a value indicating which embedded attributes should be generated during emit phase.
@@ -100,6 +101,11 @@ namespace Microsoft.CodeAnalysis.CSharp.Emit
         internal sealed override string ModuleName
         {
             get { return _metadataName; }
+        }
+
+        internal int GetAndIncrementCurrentStandAloneSigRowId
+        {
+            get { return Interlocked.Increment(ref _currentStandAloneSigRowId); }
         }
 
         internal sealed override Cci.ICustomAttribute SynthesizeAttribute(WellKnownMember attributeConstructor)

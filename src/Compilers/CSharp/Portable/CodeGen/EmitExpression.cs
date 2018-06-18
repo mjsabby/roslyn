@@ -1451,6 +1451,130 @@ namespace Microsoft.CodeAnalysis.CSharp.CodeGen
             ConstrainedCallVirt,
         }
 
+        private bool EmitIntrinsics(BoundCall call, UseKind useKind)
+        {
+            bool match = false;
+            var method = call.Method;
+
+            var parameterCount = method.ParameterCount;
+            var typeArgumentsLength = method.TypeArguments.Length;
+            var name = method.Name;
+
+            if (method.ReturnType?.SpecialType == SpecialType.System_RuntimeTypeHandle && parameterCount == 0 && typeArgumentsLength == 1 && string.Equals(name, "LoadTypeToken"))
+            {
+                match = true;
+                _builder.EmitOpCode(ILOpCode.Ldtoken);
+                EmitSymbolToken(method.TypeArguments[0], call.Syntax);
+            }
+            else if (method.ReturnType?.SpecialType == SpecialType.System_Int32 && parameterCount == 0 && typeArgumentsLength == 1 && string.Equals(name, "LoadTypeTokenInt32"))
+            {
+                match = true;
+                _builder.EmitOpCode(ILOpCode.Ldc_i4);
+                EmitSymbolToken(method.TypeArguments[0], call.Syntax);
+            }
+            else if (method.ReturnType?.SpecialType == SpecialType.System_String && parameterCount == 0 && typeArgumentsLength == 0 && string.Equals(name, "LoadMvidString"))
+            {
+                match = true;
+                _builder.EmitOpCode(ILOpCode.Ldstr);
+                _builder.EmitModuleVersionIdStringToken();
+            }
+            else if (method.ReturnType?.IsVoidPointer() == true && parameterCount == 1 && typeArgumentsLength == 0 && string.Equals(name, "LoadFunctionPointer") && call.Arguments[0] is BoundDelegateCreationExpression boundDelegateCreationExpression1)
+            {
+                match = true;
+                _builder.EmitOpCode(ILOpCode.Ldftn);
+                EmitSymbolToken(boundDelegateCreationExpression1.MethodOpt, call.Syntax, optArgList: null);
+            }
+            else if (method.ReturnType?.IsVoidPointer() == true && parameterCount == 1 && typeArgumentsLength == 0 && string.Equals(name, "LoadVirtualFunctionPointer") && call.Arguments[0] is BoundDelegateCreationExpression boundDelegateCreationExpression2)
+            {
+                match = true;
+                EmitExpression(boundDelegateCreationExpression2.Argument, used: true);
+                _builder.EmitOpCode(ILOpCode.Ldvirtftn);
+                EmitSymbolToken(boundDelegateCreationExpression2.MethodOpt, call.Syntax, optArgList: null);
+            }
+            else if (method.ReturnType?.SpecialType == SpecialType.System_RuntimeMethodHandle && parameterCount == 1 && typeArgumentsLength == 0 && string.Equals(name, "LoadMethodToken") && call.Arguments[0] is BoundDelegateCreationExpression boundDelegateCreationExpressionForMethodToken)
+            {
+                match = true;
+                _builder.EmitOpCode(ILOpCode.Ldtoken);
+                EmitSymbolToken(boundDelegateCreationExpressionForMethodToken.MethodOpt, call.Syntax, optArgList: null);
+            }
+            else if (method.ReturnType?.SpecialType == SpecialType.System_Int32 && parameterCount == 1 && typeArgumentsLength == 0 && string.Equals(name, "LoadMethodTokenInt32") && call.Arguments[0] is BoundDelegateCreationExpression boundDelegateCreationExpressionForMethodTokenInt32)
+            {
+                match = true;
+                _builder.EmitOpCode(ILOpCode.Ldc_i4);
+                EmitSymbolToken(boundDelegateCreationExpressionForMethodTokenInt32.MethodOpt, call.Syntax, optArgList: null);
+            }
+            else if (method.ReturnType?.SpecialType == SpecialType.System_RuntimeFieldHandle && parameterCount == 1 && typeArgumentsLength == 1 && string.Equals(name, "LoadFieldToken") && call.Arguments[0] is BoundFieldAccess boundFieldAccess)
+            {
+                match = true;
+                _builder.EmitOpCode(ILOpCode.Ldtoken);
+                EmitSymbolToken(boundFieldAccess.FieldSymbol, call.Syntax);
+            }
+            else if (method.ReturnType?.SpecialType == SpecialType.System_Int32 && parameterCount == 1 && typeArgumentsLength == 1 && string.Equals(name, "LoadFieldTokenInt32") && call.Arguments[0] is BoundFieldAccess boundFieldInt32Access)
+            {
+                match = true;
+                _builder.EmitOpCode(ILOpCode.Ldc_i4);
+                EmitSymbolToken(boundFieldInt32Access.FieldSymbol, call.Syntax);
+            }
+            else if (method.ReturnType?.SpecialType == SpecialType.System_RuntimeMethodHandle && parameterCount == 1 && typeArgumentsLength == 1 && string.Equals(name, "LoadGetterToken") && call.Arguments[0] is BoundCall boundCallForGetter)
+            {
+                var methodSymbol = boundCallForGetter.Method;
+                var propertySymbol = methodSymbol.AssociatedSymbol as PropertySymbol;
+                if (propertySymbol != null)
+                {
+                    match = true;
+                    _builder.EmitOpCode(ILOpCode.Ldtoken);
+                    EmitSymbolToken(propertySymbol.GetMethod, call.Syntax, optArgList: null);
+                }
+            }
+            else if (method.ReturnType?.SpecialType == SpecialType.System_Int32 && parameterCount == 1 && typeArgumentsLength == 1 && string.Equals(name, "LoadGetterTokenInt32") && call.Arguments[0] is BoundCall boundCallForGetterInt32)
+            {
+                var methodSymbol = boundCallForGetterInt32.Method;
+                var propertySymbol = methodSymbol.AssociatedSymbol as PropertySymbol;
+                if (propertySymbol != null)
+                {
+                    match = true;
+                    _builder.EmitOpCode(ILOpCode.Ldc_i4);
+                    EmitSymbolToken(propertySymbol.GetMethod, call.Syntax, optArgList: null);
+                }
+            }
+            else if (method.ReturnType?.SpecialType == SpecialType.System_RuntimeMethodHandle && parameterCount == 1 && typeArgumentsLength == 1 && string.Equals(name, "LoadSetterToken") && call.Arguments[0] is BoundCall boundCallForSetter)
+            {
+                var methodSymbol = boundCallForSetter.Method;
+                var propertySymbol = methodSymbol.AssociatedSymbol as PropertySymbol;
+                if (propertySymbol != null)
+                {
+                    match = true;
+                    _builder.EmitOpCode(ILOpCode.Ldtoken);
+                    EmitSymbolToken(propertySymbol.SetMethod, call.Syntax, optArgList: null);
+                }
+            }
+            else if (method.ReturnType?.SpecialType == SpecialType.System_Int32 && parameterCount == 1 && typeArgumentsLength == 1 && string.Equals(name, "LoadSetterTokenInt32") && call.Arguments[0] is BoundCall boundCallForSetterInt32)
+            {
+                var methodSymbol = boundCallForSetterInt32.Method;
+                var propertySymbol = methodSymbol.AssociatedSymbol as PropertySymbol;
+                if (propertySymbol != null)
+                {
+                    match = true;
+                    _builder.EmitOpCode(ILOpCode.Ldc_i4);
+                    EmitSymbolToken(propertySymbol.SetMethod, call.Syntax, optArgList: null);
+                }
+            }
+
+            if (match)
+            {
+                if (!method.ReturnsVoid)
+                {
+                    EmitPopIfUnused(useKind != UseKind.Unused);
+                }
+                else if (_ilEmitStyle == ILEmitStyle.Debug)
+                {
+                    _builder.EmitOpCode(ILOpCode.Nop);
+                }
+            }
+
+            return match;
+        }
+
         private void EmitCallExpression(BoundCall call, UseKind useKind)
         {
             var method = call.Method;
@@ -1473,6 +1597,25 @@ namespace Microsoft.CodeAnalysis.CSharp.CodeGen
                 FreeOptTemp(tempOpt);
 
                 return;
+            }
+
+            if (method.IsStatic && method.IsExternal)
+            {
+                foreach (var attribute in method.GetAttributes())
+                {
+                    var originalDef = attribute?.AttributeClass?.OriginalDefinition;
+                    if (originalDef != null &&
+                        originalDef.ContainingNamespace?.QualifiedName == "System.Runtime.CompilerServices" &&
+                        originalDef.Name == "CompilerIntrinsicAttribute")
+                    {
+                        if (EmitIntrinsics(call, useKind))
+                        {
+                            return;
+                        }
+
+                        break;
+                    }
+                }
             }
 
             var arguments = call.Arguments;

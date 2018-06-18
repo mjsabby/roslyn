@@ -2884,6 +2884,24 @@ namespace Microsoft.Cci
             var methods = this.GetMethodDefs();
             int[] bodyOffsets = new int[methods.Count];
 
+            int actualIndirectMethods = 0;
+            var indirectMethods = new IMethodDefinition[methods.Count];
+            foreach (IMethodDefinition method in methods)
+            {
+                var body = method.GetBody(Context);
+                if (body?.StandAloneSignatureRowId > 0)
+                {
+                    indirectMethods[body.StandAloneSignatureRowId - 1] = method;
+                    ++actualIndirectMethods;
+                }
+            }
+
+            // NOTE: It is important we do this before handling Local Variable Signatures in this.SerializeLocalVariablesSignature
+            for (int i = 0; i < actualIndirectMethods; ++i)
+            {
+                this.SerializeCallIndirectSignature(new CallIndirectMethodReference(indirectMethods[i], indirectMethods[i].GetBody(Context).IndirectCallingConvention));
+            }
+
             var lastLocalVariableHandle = default(LocalVariableHandle);
             var lastLocalConstantHandle = default(LocalConstantHandle);
 
@@ -2897,33 +2915,22 @@ namespace Microsoft.Cci
             {
                 _cancellationToken.ThrowIfCancellationRequested();
                 int bodyOffset;
-                IMethodBody body;
+                IMethodBody body = method.GetBody(Context);
                 StandaloneSignatureHandle localSignatureHandleOpt;
 
-                if (method.HasBody())
+                if (body != null)
                 {
-                    body = method.GetBody(Context);
+                    localSignatureHandleOpt = this.SerializeLocalVariablesSignature(body);
 
-                    if (body != null)
-                    {
-                        localSignatureHandleOpt = this.SerializeLocalVariablesSignature(body);
+                    // TODO: consider parallelizing these (local signature tokens can be piped into IL serialization & debug info generation)
+                    bodyOffset = SerializeMethodBody(encoder, body, localSignatureHandleOpt, ref mvidStringHandle, ref mvidStringFixup);
 
-                        // TODO: consider parallelizing these (local signature tokens can be piped into IL serialization & debug info generation)
-                        bodyOffset = SerializeMethodBody(encoder, body, localSignatureHandleOpt, ref mvidStringHandle, ref mvidStringFixup);
-
-                        nativePdbWriterOpt?.SerializeDebugInfo(body, localSignatureHandleOpt, customDebugInfoWriter);
-                    }
-                    else
-                    {
-                        bodyOffset = 0;
-                        localSignatureHandleOpt = default(StandaloneSignatureHandle);
-                    }
+                    nativePdbWriterOpt?.SerializeDebugInfo(body, localSignatureHandleOpt, customDebugInfoWriter);
                 }
                 else
                 {
                     // 0 is actually written to metadata when the row is serialized
-                    bodyOffset = -1;
-                    body = null;
+                    bodyOffset = method.HasBody() ? 0 : -1;
                     localSignatureHandleOpt = default(StandaloneSignatureHandle);
                 }
 
@@ -3007,6 +3014,21 @@ namespace Microsoft.Cci
 
             var handle = GetOrAddStandaloneSignatureHandle(blobIndex);
             builder.Free();
+
+            return handle;
+        }
+
+        /// <summary>
+        /// Serialize the call indirect expansion of the compiler intrinsic
+        /// </summary>
+        /// <returns>Standalone signature token</returns>
+        protected virtual StandaloneSignatureHandle SerializeCallIndirectSignature(IMethodReference methodReference)
+        {
+            Debug.Assert(!_tableIndicesAreComplete);
+            
+            BlobHandle blobIndex = GetMethodSignatureHandle(methodReference);
+
+            var handle = GetOrAddStandaloneSignatureHandle(blobIndex);
 
             return handle;
         }
@@ -4181,6 +4203,117 @@ namespace Microsoft.Cci
             {
                 _instanceIndex.Add(item, index);
                 _structuralIndex.Add(item, index);
+            }
+        }
+
+        private sealed class CallIndirectMethodReference : IMethodReference
+        {
+            private readonly IMethodReference _inner;
+
+            private readonly CallingConvention _callingConvention;
+
+            public CallIndirectMethodReference(IMethodReference inner, CallingConvention callingConvention)
+            {
+                _inner = inner;
+                _callingConvention = callingConvention;
+            }
+
+            public CallingConvention CallingConvention
+            {
+                get { return _callingConvention; }
+            }
+
+            public ushort ParameterCount
+            {
+                get { return (ushort)(_inner.ParameterCount - 1); } // the last argument is the function pointer which is not part of the sig
+            }
+
+            public ImmutableArray<IParameterTypeInformation> GetParameters(EmitContext context)
+            {
+                return _inner.GetParameters(context).Take(ParameterCount).ToImmutableArray();
+            }
+
+            public ImmutableArray<ICustomModifier> ReturnValueCustomModifiers
+            {
+                get { return _inner.ReturnValueCustomModifiers; }
+            }
+
+            public bool ReturnValueIsByRef
+            {
+                get { return _inner.ReturnValueIsByRef; }
+            }
+
+            public ITypeReference GetType(EmitContext context)
+            {
+                return _inner.GetType(context);
+            }
+
+            public IEnumerable<ICustomAttribute> GetAttributes(EmitContext context)
+            {
+                return _inner.GetAttributes(context);
+            }
+
+            public void Dispatch(MetadataVisitor visitor)
+            {
+                _inner.Dispatch(visitor);
+            }
+
+            public IDefinition AsDefinition(EmitContext context)
+            {
+                return _inner.AsDefinition(context);
+            }
+
+            public string Name
+            {
+                get { return _inner.Name; }
+            }
+
+            public ITypeReference GetContainingType(EmitContext context)
+            {
+                return _inner.GetContainingType(context);
+            }
+
+            public bool AcceptsExtraArguments
+            {
+                get { return _inner.AcceptsExtraArguments; }
+            }
+
+            public ushort GenericParameterCount
+            {
+                get { return _inner.GenericParameterCount; }
+            }
+
+            public bool IsGeneric
+            {
+                get { return _inner.IsGeneric; }
+            }
+
+            public IMethodDefinition GetResolvedMethod(EmitContext context)
+            {
+                return _inner.GetResolvedMethod(context);
+            }
+
+            public ImmutableArray<IParameterTypeInformation> ExtraParameters
+            {
+                get { return _inner.ExtraParameters; }
+            }
+
+            public IGenericMethodInstanceReference AsGenericMethodInstanceReference
+            {
+                get { return _inner.AsGenericMethodInstanceReference; }
+            }
+
+            public ISpecializedMethodReference AsSpecializedMethodReference
+            {
+                get { return _inner.AsSpecializedMethodReference; }
+            }
+
+            public ImmutableArray<ICustomModifier> RefCustomModifiers
+            {
+                get
+                {
+                    return this._inner.RefCustomModifiers;
+                }
             }
         }
     }
